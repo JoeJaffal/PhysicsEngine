@@ -4,9 +4,8 @@ import java.awt.*;
 import java.util.ArrayList;
 import javax.swing.Timer;
 
-
 class DrawPanel extends JPanel {
-    private ArrayList<Entity> circles = new ArrayList<>();
+    static public ArrayList<Entity> circles = new ArrayList<>();
 
     public DrawPanel() {
         setBackground(Color.WHITE);
@@ -33,26 +32,48 @@ class DrawPanel extends JPanel {
     }
 }
 
+class Corner {
+    double x;
+    double y;
+    public Corner (double x, double y){
+        this.x = x;
+        this.y=y;
+    }
+}
 
 class Entity {
     double x;
     double y;
     double mass;
 
-    double xvel = 800;
-    double yvel = 0;
+    double xvel;
+    double yvel;
     double velocity = Math.sqrt(xvel*xvel + yvel*yvel);
 
-    double xacc = 0;
+    double xacc;
     double yacc;
     double acceleration = Math.sqrt(xacc*xacc + yacc*yacc);
-    boolean recCol=false;
 
     public Entity(double x, double y, double mass) {
         this.x = x;
         this.y = y;
         this.yacc = Main.gravity;
         this.mass = mass*10;
+    }
+    public Entity(double x, double y, double mass, double xvel, double yvel) {
+        this.x = x;
+        this.y = y;
+        this.yacc = Main.gravity;
+        this.mass = mass*Main.unit;
+        this.xvel = xvel*Main.unit;
+        this.yvel = yvel*Main.unit;
+    }
+
+    public void setXvel(double xvel) {
+        this.xvel = xvel*Main.unit;
+    }
+    public void setYvel(double yvel) {
+        this.xvel = xvel*Main.unit;
     }
 
     public void handlePhysics(){
@@ -64,6 +85,18 @@ class Entity {
     public void updateVel(){
         this.xvel = this.xacc * Main.t+ this.xvel;
         this.yvel = this.yacc * Main.t + this.yvel;
+        if (this.xvel>0) {
+            if (this.xacc * Main.t+ this.xvel < 0){
+                this.xvel = 0;
+                this.xacc = 0;
+            }
+        }
+        if (this.xvel<0) {
+            if (this.xacc * Main.t+ this.xvel > 0){
+                this.xvel = 0;
+                this.xacc = 0;
+            }
+        }
     }
     public void updatePos(){
         this.updateVel();
@@ -71,18 +104,17 @@ class Entity {
         this.y = 0.5 * this.yacc * Main.t*Main.t + this.yvel * Main.t + this.y;
     }
     public void borderCollision() {
-        if (Main.ground - this.y < this.mass) {
-            this.y=Main.ground-this.mass;
+        if (Main.Bottom_Right_Corner.y - this.y < this.mass) {
+            this.y=Main.Bottom_Right_Corner.y-this.mass;
             this.yvel = -this.yvel;
         }
-        if (this.y < 0){
-            this.y=0;
+        if (this.y < Main.Zero.y){
+            this.y=Main.Zero.y;
             this.yvel = -this.yvel;
-            this.yacc = -this.yacc;
         }
 
-        if (Main.wall - this.x < this.mass) {
-            this.x = Main.wall-this.mass;
+        if (Main.Bottom_Right_Corner.x - this.x < this.mass) {
+            this.x = Main.Bottom_Right_Corner.x-this.mass;
             this.xvel = -this.xvel;
             this.xacc = -this.xacc;
         }
@@ -93,7 +125,7 @@ class Entity {
         }
     }
     public void friction(){
-        if (this.y>=Main.ground-this.mass) {
+        if (this.y>=Main.Bottom_Right_Corner.y-this.mass) {
             if (Math.abs(xvel) <= 1){
                 xvel = 0;
                 xacc = 0;
@@ -101,30 +133,24 @@ class Entity {
             }
             double coeff = 0.002;
             double normal = this.mass * Main.gravity;
-
-            if (this.xvel>0) {
-                this.xacc -= ((coeff * normal) / this.mass);
-                if (this.xacc * Main.t+ this.xvel < 0){
-                    this.xvel = 0;
-                    this.xacc = 0;
-                }
-            }
             if (this.xvel<0) {
                 this.xacc += ((coeff * normal) / this.mass);
-                if (this.xacc * Main.t+ this.xvel > 0){
-                    this.xvel = 0;
-                    this.xacc = 0;
-                }
             }
+            if (this.xvel>0) {
+                this.xacc -= ((coeff * normal) / this.mass);
+            }
+
+
         }
     }
 }
 
 public class Main {
-    public static final int ground = 730;
-    public static final int wall = 1280;
-    public static final double gravity = 9800;
-    public static final double delay = 16;
+    public static final double delay = 8;
+    //unit is how many pixels represent a meter; 300 means screen is 4x2
+    public static final double unit = 300;
+    public static final double gravity = 20 * unit;
+
     public static final double t = delay/1000;
     static DrawPanel InitScreen(){
         JFrame window = new JFrame("Physics Engine");
@@ -139,17 +165,22 @@ public class Main {
         return canvas;
     }
 
+    static Corner Zero = new Corner(0,0);
+    static Corner Bottom_Right_Corner = new Corner(1280,730);
+
     public static void main(String[] args) {
         DrawPanel world = InitScreen();
 
         // Objects are created in MAIN
-        Entity e1 = new Entity(200, 400, 10);
-        Entity e2 = new Entity(100, 100, 50);
+        Entity e1 = new Entity(600, 0, 0.2, 2.7, 3);
         world.addCircle(e1);
 
+
         Timer timer = new Timer((int)delay, e -> {
-            e1.handlePhysics();
-            world.repaint();
+            for (Entity entity : DrawPanel.circles){
+                entity.handlePhysics();
+                world.repaint();
+            }
         });
         timer.start();
     }
