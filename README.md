@@ -69,6 +69,6 @@ Then, I use Java’s `Timer` library to simulate frames. The timer works like a 
 
 ## Current Status
 
-Right now, the engine can create circular entities, update their motion, apply simple physics, handle border collisions, and repaint their new positions frame by frame.
+Right now (21/5/2026), the engine can create circular entities, update their motion, apply simple physics, handle border collisions, and repaint their new positions frame by frame.
 
 This is still an early version, but the main goal is learning, experimenting, and building the system step by step from scratch.
