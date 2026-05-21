@@ -54,6 +54,7 @@ I also added a `handlePhysics()` function inside the `Entity` class. This functi
 
 In the `main` file, I define final variables such as:
 
+- Unit, which controls the scale of how many pixels represent one meter
 - Gravity
 - Window borders
 - Delay between frames, which is related to the time used in the formulas
