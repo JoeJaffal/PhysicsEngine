@@ -45,6 +45,8 @@ class Entity {
     double x;
     double y;
     double mass;
+    double Xcenter;
+    double Ycenter;
 
     double xvel;
     double yvel;
@@ -58,13 +60,15 @@ class Entity {
         this.x = x;
         this.y = y;
         this.yacc = Main.gravity;
-        this.mass = mass*10;
+        this.mass = mass;
     }
     public Entity(double x, double y, double mass, double xvel, double yvel) {
         this.x = x;
         this.y = y;
         this.yacc = Main.gravity;
         this.mass = mass*Main.unit;
+        this.Xcenter = this.mass/2 + x;
+        this.Ycenter = this.mass/2 + y;
         this.xvel = xvel*Main.unit;
         this.yvel = yvel*Main.unit;
     }
@@ -80,6 +84,7 @@ class Entity {
         updatePos();
         borderCollision();
         friction();
+        entityCollision();
     }
 
     public void updateVel(){
@@ -102,6 +107,8 @@ class Entity {
         this.updateVel();
         this.x = 0.5 * this.xacc * Main.t*Main.t + this.xvel * Main.t + this.x;
         this.y = 0.5 * this.yacc * Main.t*Main.t + this.yvel * Main.t + this.y;
+        this.Xcenter = this.mass/2 + this.x;
+        this.Ycenter = this.mass/2 + this.y;
     }
     public void borderCollision() {
         if (Main.Bottom_Right_Corner.y - this.y < this.mass) {
@@ -131,16 +138,38 @@ class Entity {
                 xacc = 0;
                 return;
             }
-            double coeff = 0.002;
+
             double normal = this.mass * Main.gravity;
             if (this.xvel<0) {
-                this.xacc += ((coeff * normal) / this.mass);
+                this.xacc += ((Main.coeff * normal) / this.mass);
             }
             if (this.xvel>0) {
-                this.xacc -= ((coeff * normal) / this.mass);
+                this.xacc -= ((Main.coeff * normal) / this.mass);
             }
 
 
+        }
+    }
+    public static double getDist(Entity d1, Entity d2){
+        return Math.sqrt((d1.Xcenter-d2.Xcenter)*(d1.Xcenter-d2.Xcenter) + (d1.Ycenter-d2.Ycenter)*(d1.Ycenter-d2.Ycenter));
+    }
+    public void entityCollision(){
+        double tempX;
+        double tempY;
+        for (int i=0; i<DrawPanel.circles.size()-1; i++){
+            for (int j=i+1; j<DrawPanel.circles.size(); j++){
+                Entity e1 = DrawPanel.circles.get(i);
+                Entity e2 = DrawPanel.circles.get(j);
+                if (getDist(e1,e2) <= e1.mass/2 + e2.mass/2){
+                    // SET THEM APART THEN CALC
+                    tempX = e1.xvel;
+                    tempY = e1.yvel;
+                    e1.xvel = ((e1.mass-e2.mass)/(e1.mass+e2.mass))*e1.xvel + ((2*e2.mass)/(e1.mass+e2.mass))* e2.xvel;
+                    e2.xvel = ((2*e1.mass)/(e1.mass+e2.mass))*tempX + ((e2.mass-e1.mass)/(e1.mass+e2.mass))* e2.xvel;
+                    e1.yvel = ((e1.mass-e2.mass)/(e1.mass+e2.mass))*e1.yvel + ((2*e2.mass)/(e1.mass+e2.mass))* e2.yvel;
+                    e2.yvel = ((2*e1.mass)/(e1.mass+e2.mass))*tempY + ((e2.mass-e1.mass)/(e1.mass+e2.mass))* e2.yvel;
+                }
+            }
         }
     }
 }
@@ -149,7 +178,8 @@ public class Main {
     public static final double delay = 8;
     //unit is how many pixels represent a meter; 300 means screen is 4x2
     public static final double unit = 300;
-    public static final double gravity = 20 * unit;
+    public static final double gravity = 25 * unit;
+    public static double coeff = 0.002;
 
     public static final double t = delay/1000;
     static DrawPanel InitScreen(){
@@ -172,12 +202,13 @@ public class Main {
         DrawPanel world = InitScreen();
 
         // Objects are created in MAIN
-        Entity e1 = new Entity(600, 0, 0.2, 2.7, 3);
+        Entity e1 = new Entity(200, 300, 0.2, 2, 0);
+        Entity e2 = new Entity(800, 200, 0.4, -2, 0);
         world.addCircle(e1);
-
+        world.addCircle(e2);
 
         Timer timer = new Timer((int)delay, e -> {
-            for (Entity entity : DrawPanel.circles){
+            for (Entity entity : DrawPanel.circles) {
                 entity.handlePhysics();
                 world.repaint();
             }
