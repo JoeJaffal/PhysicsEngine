@@ -90,15 +90,6 @@ The collision normal is the direction between the centers of the two circles at 
 
 This means the collision is treated like a one-dimensional collision along the normal vector. After calculating the result along that direction, the velocity can be split back into x and y components.
 
-The tangential component is not directly affected by the collision itself, because for ideal circle collision, the collision impulse acts along the normal direction.
-
-In simple terms:
-
-collision normal = direction between the two circle centers
-
-and:
-
-collision response = momentum/velocity exchange along that normal direction
 
 ## Collision Jittering and Overlap Correction
 
@@ -106,12 +97,9 @@ While testing entity collision, I found a problem similar to the jittering issue
 
 For ground collision, jittering happens when the entity keeps slightly passing through the ground and then being corrected again every frame. The fix was to use a stricter collision check, and when the condition is met, place the entity exactly on the surface.
 
-With entity collision, the problem is more complicated because both objects can move, and the collision surface is not fixed like the ground.
+With entity collision, we make use of the fact that we have the normal vector, meaning we have the line on which the entities are allowed to move when correcting their positions.
 
-To fix the overlap after collision, I currently treat one entity as fixed temporarily. Then I move the other entity out of the overlap using:
-
-movement distance = overlap
-movement direction = collision normal
+To fix the overlap after collision, I move the 2 entities away from each other with a ratio relative to their size/mass.
 
 This separates the two circles so they are no longer inside each other.
 
