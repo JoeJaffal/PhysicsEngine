@@ -16,7 +16,7 @@ I started by learning how to open a window using `JFrame`.
 
 After that, I placed a custom panel inside the window by extending `JPanel`. This allowed me to draw shapes on the screen. I also overrode the painting behavior so the panel could fit the needs of my project.
 
-Everything up to this point was learned through Library documentation, and basic research.
+Everything up to this point was learned through library documentation and basic research.
 
 ## The Real Challenge
 
@@ -50,6 +50,16 @@ These functions are based on ideas from Newton’s First and Second Laws of Moti
 
 I also added a `handlePhysics()` function inside the `Entity` class. This function calls the other physics functions together, which keeps the `main` file cleaner and easier to read.
 
+## Unit System
+
+At first, the simulation was using pixels directly inside the physics calculations. This meant values like position and velocity were effectively being treated as pixels and pixels per second.
+
+I later fixed this by adding a `unit` variable in `main`, which controls how many pixels represent one meter.
+
+Now, the physics calculations are handled in meters, while rendering still happens in pixels. This separates the actual physics logic from the screen drawing logic and makes the simulation more realistic and easier to reason about.
+
+I also fixed a small mistake inside `updateVel()` during this update.
+
 ## How the Simulation Works
 
 In the `main` file, I define final variables such as:
@@ -68,25 +78,79 @@ Then, I use Java’s `Timer` library to simulate frames. The timer works like a 
 2. The screen is repainted using `repaint()`.
 3. The new positions are drawn on the panel.
 
-
-### Entity Collision System
+## Entity Collision System
 
 I started working on entity-to-entity collision.
 
-The first step was implementing the conservation of linear momentum law on both the x and y components of velocity. This allows two entities to exchange velocity based on their masses and current movement.
+At first, I had to rethink how collision response should work. The correct idea is not to simply apply the conservation of linear momentum separately to the global x and y velocity components.
 
-While testing this, I found a problem similar to the jittering issue I previously had with ground collision.
+Instead, the collision should be handled along the collision normal.
 
-For ground collision, jittering happens when the entity keeps slightly passing through the ground and then being corrected again every frame. The fix was to check for collision strictly, and when the condition is met, place the entity exactly on the surface.
+The collision normal is the direction between the centers of the two circles at the moment of contact. Since the collision force acts along this line, the velocities are projected onto the normal direction, and the collision response is calculated there.
 
-With entity collision, the problem is more complicated because both objects are moving and the collision surface is not fixed.
+This means the collision is treated like a one-dimensional collision along the normal vector. After calculating the result along that direction, the velocity can be split back into x and y components.
 
-To solve this, I used the line formed by the centers of the two circles. I get the equation of that line, then use the condition:
+The tangential component is not directly affected by the collision itself, because for ideal circle collision, the collision impulse acts along the normal direction.
 
-```text
-distance between centers = radius1 + radius2
+In simple terms:
 
+collision normal = direction between the two circle centers
 
+and:
 
-## Note on commits
-The first batch was committed as whole due to issues from my side (I accidentally uninstalled git)
+collision response = momentum/velocity exchange along that normal direction
+
+## Collision Jittering and Overlap Correction
+
+While testing entity collision, I found a problem similar to the jittering issue I previously had with ground collision.
+
+For ground collision, jittering happens when the entity keeps slightly passing through the ground and then being corrected again every frame. The fix was to use a stricter collision check, and when the condition is met, place the entity exactly on the surface.
+
+With entity collision, the problem is more complicated because both objects can move, and the collision surface is not fixed like the ground.
+
+To fix the overlap after collision, I currently treat one entity as fixed temporarily. Then I move the other entity out of the overlap using:
+
+movement distance = overlap
+movement direction = collision normal
+
+This separates the two circles so they are no longer inside each other.
+
+## Tunneling Problem
+
+Another issue I noticed is tunneling.
+
+Since collision is checked once per frame, it is possible for a fast-moving entity to pass too far into another entity before the collision is detected. In extreme cases, the entities could completely pass through each other between two frames, causing the collision to not be detected at all.
+
+To reduce this problem, I started storing the previous position of the entity before collision detection. This helps make the correction more accurate because I can compare the corrected position with where the entity came from, not only where it ended up after the frame update.
+
+This solution works well in most normal cases, but it does not completely solve high-speed tunneling yet.
+
+A possible future solution is continuous collision detection.
+
+## Current Features
+
+- Window creation using `JFrame`
+- Custom drawing panel using `JPanel`
+- Circle-based entities
+- Position, velocity, acceleration, and mass
+- Meter-based physics with pixel conversion for rendering
+- Gravity
+- Friction
+- Border collision
+- Basic entity-to-entity collision
+- Collision response using the normal vector between entities
+- Basic overlap correction
+- Previous-position tracking to reduce tunneling problems
+
+## Next Steps
+
+- Improve entity collision stability
+- Improve the way velocities are updated after collision
+- Handle high-speed tunneling cases
+- Research or implement continuous collision detection
+- Add better debugging visuals for collision normals and velocity vectors
+- Keep improving the engine step by step without relying too much on external help
+
+## Note on Commits
+
+The first batch was committed as a whole due to issues from my side. I accidentally uninstalled Git, so the early progress could not be separated into smaller commits.
