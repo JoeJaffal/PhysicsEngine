@@ -47,6 +47,8 @@ class Entity {
     double mass;
     double Xcenter;
     double Ycenter;
+    double previousX;
+    double previousY;
 
     double xvel;
     double yvel;
@@ -71,13 +73,15 @@ class Entity {
         this.Ycenter = this.mass/2 + y;
         this.xvel = xvel*Main.unit;
         this.yvel = yvel*Main.unit;
+        this.previousX = x;
+        this.previousY = y;
     }
 
     public void setXvel(double xvel) {
         this.xvel = xvel*Main.unit;
     }
     public void setYvel(double yvel) {
-        this.xvel = xvel*Main.unit;
+        this.yvel = yvel*Main.unit;
     }
 
     public void handlePhysics(){
@@ -105,6 +109,8 @@ class Entity {
     }
     public void updatePos(){
         this.updateVel();
+        this.previousX = this.x;
+        this.previousY = this.y;
         this.x = 0.5 * this.xacc * Main.t*Main.t + this.xvel * Main.t + this.x;
         this.y = 0.5 * this.yacc * Main.t*Main.t + this.yvel * Main.t + this.y;
         this.Xcenter = this.mass/2 + this.x;
@@ -150,24 +156,56 @@ class Entity {
 
         }
     }
-    public static double getDist(Entity d1, Entity d2){
-        return Math.sqrt((d1.Xcenter-d2.Xcenter)*(d1.Xcenter-d2.Xcenter) + (d1.Ycenter-d2.Ycenter)*(d1.Ycenter-d2.Ycenter));
-    }
-    public void entityCollision(){
-        double tempX;
-        double tempY;
-        for (int i=0; i<DrawPanel.circles.size()-1; i++){
-            for (int j=i+1; j<DrawPanel.circles.size(); j++){
+    public void entityCollision() {
+        double EPS = 0.0001;
+
+        for (int i = 0; i < DrawPanel.circles.size() - 1; i++) {
+            for (int j = i + 1; j < DrawPanel.circles.size(); j++) {
                 Entity e1 = DrawPanel.circles.get(i);
                 Entity e2 = DrawPanel.circles.get(j);
-                if (getDist(e1,e2) <= e1.mass/2 + e2.mass/2){
-                    // SET THEM APART THEN CALC
-                    tempX = e1.xvel;
-                    tempY = e1.yvel;
-                    e1.xvel = ((e1.mass-e2.mass)/(e1.mass+e2.mass))*e1.xvel + ((2*e2.mass)/(e1.mass+e2.mass))* e2.xvel;
-                    e2.xvel = ((2*e1.mass)/(e1.mass+e2.mass))*tempX + ((e2.mass-e1.mass)/(e1.mass+e2.mass))* e2.xvel;
-                    e1.yvel = ((e1.mass-e2.mass)/(e1.mass+e2.mass))*e1.yvel + ((2*e2.mass)/(e1.mass+e2.mass))* e2.yvel;
-                    e2.yvel = ((2*e1.mass)/(e1.mass+e2.mass))*tempY + ((e2.mass-e1.mass)/(e1.mass+e2.mass))* e2.yvel;
+
+                double r1 = e1.mass / 2.0;
+                double r2 = e2.mass / 2.0;
+                double minDist = r1 + r2;
+                double sysXcenter = e2.Xcenter - e1.Xcenter;
+                double sysYcenter = e2.Ycenter - e1.Ycenter;
+                double dist = Math.sqrt(sysXcenter * sysXcenter + sysYcenter * sysYcenter);
+
+                if (dist < minDist - EPS) { // Collision detected
+                    if (dist == 0) {
+                        sysXcenter = 1;
+                        sysYcenter = 0;
+                        dist = 1;
+                    }
+
+                    double xnormal = sysXcenter / dist;
+                    double ynormal = sysYcenter / dist;
+                    double systemXvel = e2.xvel - e1.xvel;
+                    double systemYvel = e2.yvel - e1.yvel;
+
+                    double velAlongNormal = systemXvel * xnormal + systemYvel * ynormal;
+                    if (velAlongNormal > 0) {
+                        continue;
+                    }
+                    double overlap = minDist - dist + EPS;
+                    double ratio1 = r1/(r1+r2);
+
+                    e1.Xcenter -= xnormal * overlap/(ratio1);
+                    e1.Ycenter -= ynormal * overlap/(ratio1);
+                    e2.Xcenter -= xnormal * overlap/(1-ratio1);
+                    e2.Ycenter -= ynormal * overlap/(1-ratio1);
+                    e1.x = e1.Xcenter - r1;
+                    e1.y = e1.Ycenter - r1;
+                    e2.x = e2.Xcenter - r2;
+                    e2.y = e2.Ycenter - r2;
+
+                    double m1 = e1.mass;
+                    double m2 = e2.mass;
+                    double bounce = (2 * velAlongNormal) / (m1 + m2);
+                    e1.xvel += bounce * m2 * xnormal;
+                    e1.yvel += bounce * m2 * ynormal;
+                    e2.xvel -= bounce * m1 * xnormal;
+                    e2.yvel -= bounce * m1 * ynormal;
                 }
             }
         }
@@ -178,8 +216,8 @@ public class Main {
     public static final double delay = 8;
     //unit is how many pixels represent a meter; 300 means screen is 4x2
     public static final double unit = 300;
-    public static final double gravity = 25 * unit;
-    public static double coeff = 0.002;
+    public static final double gravity = 9.8 * unit;
+    public static double coeff = 0.005;
 
     public static final double t = delay/1000;
     static DrawPanel InitScreen(){
@@ -200,14 +238,12 @@ public class Main {
 
     public static void main(String[] args) {
         DrawPanel world = InitScreen();
-
-        // Objects are created in MAIN
-        Entity e1 = new Entity(200, 300, 0.2, 2, 0);
-        Entity e2 = new Entity(800, 200, 0.4, -2, 0);
+        Entity e1 = new Entity(20, 20, 0.05, 7, 0);
         world.addCircle(e1);
-        world.addCircle(e2);
-
         Timer timer = new Timer((int)delay, e -> {
+            world.addCircle(new Entity(0, 0, 0.05, 7, 0));
+            System.out.println(DrawPanel.circles.size());
+
             for (Entity entity : DrawPanel.circles) {
                 entity.handlePhysics();
                 world.repaint();
