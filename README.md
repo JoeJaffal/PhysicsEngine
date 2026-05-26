@@ -68,11 +68,24 @@ Then, I use Java’s `Timer` library to simulate frames. The timer works like a 
 2. The screen is repainted using `repaint()`.
 3. The new positions are drawn on the panel.
 
-## Current Status
 
-Right now (21/5/2026), the engine can create circular entities, update their motion, apply simple physics, handle border collisions, and repaint their new positions frame by frame.
+### Entity Collision System
 
-This is still an early version, but the main goal is learning, experimenting, and building the system step by step from scratch.
+I started working on entity-to-entity collision.
+
+The first step was implementing the conservation of linear momentum law on both the x and y components of velocity. This allows two entities to exchange velocity based on their masses and current movement.
+
+While testing this, I found a problem similar to the jittering issue I previously had with ground collision.
+
+For ground collision, jittering happens when the entity keeps slightly passing through the ground and then being corrected again every frame. The fix was to check for collision strictly, and when the condition is met, place the entity exactly on the surface.
+
+With entity collision, the problem is more complicated because both objects are moving and the collision surface is not fixed.
+
+To solve this, I used the line formed by the centers of the two circles. I get the equation of that line, then use the condition:
+
+```text
+distance between centers = radius1 + radius2
+
 
 
 ## Note on commits
