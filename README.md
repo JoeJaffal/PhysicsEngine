@@ -115,9 +115,9 @@ movement direction = collision normal
 
 This separates the two circles so they are no longer inside each other.
 
-## Tunneling Problem
+## Collision Detection Problems
 
-Another issue I noticed is tunneling.
+Another issue I noticed is that on higher speeds, it isn't really guaranteed that: frame 1, no collision, center1 is at left, center2 is at right. frame 2, collision, center1 still at left, center2 still at right.
 
 Since collision is checked once per frame, it is possible for a fast-moving entity to pass too far into another entity before the collision is detected. In extreme cases, the entities could completely pass through each other between two frames, causing the collision to not be detected at all.
 
