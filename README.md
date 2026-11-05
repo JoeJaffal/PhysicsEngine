@@ -35,7 +35,8 @@ I started by creating an `Entity` class.
 For now, an entity is basically a circle with extra physical properties, such as:
 
 - Position
-- Mass, which is related to the size of the circle
+- Diameter (independent of mass)
+- Mass in kilograms
 - Velocity
 - Acceleration
 
@@ -52,13 +53,9 @@ I also added a `handlePhysics()` function inside the `Entity` class. This functi
 
 ## Unit System
 
-At first, the simulation was using pixels directly inside the physics calculations. This meant values like position and velocity were effectively being treated as pixels and pixels per second.
+Positions and collision geometry currently use pixels internally. Constructor diameters and velocities are supplied in meters and meters per second and converted using `Main.unit` (pixels per meter). Gravity is scaled to pixels per second squared. Mass is stored separately in kilograms and is never used as a drawing size.
 
-I later fixed this by adding a `unit` variable in `main`, which controls how many pixels represent one meter.
-
-Now, the physics calculations are handled in meters, while rendering still happens in pixels. This separates the actual physics logic from the screen drawing logic and makes the simulation more realistic and easier to reason about.
-
-I also fixed a small mistake inside `updateVel()` during this update.
+The three- and five-argument constructors preserve the original demo's size-to-mass default. The six-argument constructor accepts independent diameter and mass: `Entity(xPixels, yPixels, diameterMeters, massKg, vxMetersPerSecond, vyMetersPerSecond)`.
 
 ## How the Simulation Works
 
@@ -99,7 +96,7 @@ For ground collision, jittering happens when the entity keeps slightly passing t
 
 With entity collision, we make use of the fact that we have the normal vector, meaning we have the line on which the entities are allowed to move when correcting their positions.
 
-To fix the overlap after collision, I move the 2 entities away from each other with a ratio relative to their size/mass.
+To fix overlap, I move the two entities in opposite directions along the contact normal, weighted by inverse mass. This preserves the center of mass. Position correction also runs when overlapping bodies are already separating; a velocity impulse is only applied when they are approaching.
 
 This separates the two circles so they are no longer inside each other.
 
@@ -109,9 +106,7 @@ Another issue I noticed is that on higher speeds, it isn't really guaranteed tha
 
 Since collision is checked once per frame, it is possible for a fast-moving entity to pass too far into another entity before the collision is detected. In extreme cases, the entities could completely pass through each other between two frames, causing the collision to not be detected at all.
 
-To reduce this problem, I started storing the previous position of the entity before collision detection. This helps make the correction more accurate because I can compare the corrected position with where the entity came from, not only where it ended up after the frame update.
-
-This solution works well in most normal cases, but it does not completely solve high-speed tunneling yet.
+Previous positions are stored, but the current collision checks do not use them for swept collision detection. Fast bodies can still tunnel through each other between updates.
 
 A possible future solution is continuous collision detection.
 
@@ -128,7 +123,7 @@ A possible future solution is continuous collision detection.
 - Basic entity-to-entity collision
 - Collision response using the normal vector between entities
 - Basic overlap correction
-- Previous-position tracking to reduce tunneling problems
+- Previous-position tracking (continuous collision detection is not implemented)
 
 ## Next Steps
 
@@ -142,3 +137,29 @@ A possible future solution is continuous collision detection.
 ## Note on Commits
 
 The first batch was committed as a whole due to issues from my side. I accidentally uninstalled Git, so the early progress could not be separated into smaller commits.
+
+## Correctness checks
+
+The position update applies constant-acceleration displacement before updating velocity, so acceleration is not counted twice. Ground friction is recalculated rather than accumulated, and clamps small velocities to avoid reversing a body. Wall corrections refresh collision centers and only reverse velocity pointing into a wall. A small impact threshold lets circles settle on the floor.
+
+Run with JDK 17 or later:
+
+```sh
+javac -d build/app src/Main.java
+java -cp build/app Main
+```
+
+Run the headless regression checks:
+
+```sh
+javac -d build/checks src/Main.java tests/PhysicsChecks.java
+java -cp build/checks PhysicsChecks
+```
+
+The checks cover free fall, independent mass and size, constructor consistency, unequal-mass elastic collisions, momentum and energy conservation, penetration correction (including coincident centers and separating bodies), friction, and floor/wall contact.
+
+## Collision detection roadmap
+
+I have read about more advanced collision-detection algorithms and plan to further enhance my implementation. For now, it still uses discrete, pairwise circle-overlap checks. The existing call pattern also repeats the pair scan for each entity; this has deliberately been left unchanged in this correctness update. Broad-phase acceleration and continuous collision detection are future improvements, not current features.
+
+The timer still uses an assumed fixed interval rather than an elapsed-time accumulator. Dense piles, wall/contact interactions, and high-speed impacts need further work; the floor resting check does not establish a general stacking solver.
