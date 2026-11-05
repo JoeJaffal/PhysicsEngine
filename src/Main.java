@@ -27,7 +27,7 @@ class DrawPanel extends JPanel {
 
         for (Entity circle : circles) {
             g.setColor(Color.BLUE);
-            g.fillOval((int)circle.x, (int)circle.y, (int)circle.mass, (int)circle.mass);
+            g.fillOval((int)circle.x, (int)circle.y, (int)circle.diameter, (int)circle.diameter);
         }
     }
 }
@@ -45,6 +45,7 @@ class Entity {
     double x;
     double y;
     double mass;
+    double diameter;
     double Xcenter;
     double Ycenter;
     double previousX;
@@ -52,25 +53,27 @@ class Entity {
 
     double xvel;
     double yvel;
-    double velocity = Math.sqrt(xvel*xvel + yvel*yvel);
 
     double xacc;
     double yacc;
-    double acceleration = Math.sqrt(xacc*xacc + yacc*yacc);
 
-    public Entity(double x, double y, double mass) {
-        this.x = x;
-        this.y = y;
-        this.yacc = Main.gravity;
-        this.mass = mass;
+    public Entity(double x, double y, double diameterMeters) {
+        this(x, y, diameterMeters, 0, 0);
     }
-    public Entity(double x, double y, double mass, double xvel, double yvel) {
+    public Entity(double x, double y, double diameterMeters, double xvel, double yvel) {
+        this(x, y, diameterMeters, diameterMeters, xvel, yvel);
+    }
+    public Entity(double x, double y, double diameterMeters, double massKg, double xvel, double yvel) {
+        if (!Double.isFinite(diameterMeters) || diameterMeters <= 0 ||
+                !Double.isFinite(massKg) || massKg <= 0) {
+            throw new IllegalArgumentException("Diameter and mass must be finite and positive");
+        }
         this.x = x;
         this.y = y;
         this.yacc = Main.gravity;
-        this.mass = mass*Main.unit;
-        this.Xcenter = this.mass/2 + x;
-        this.Ycenter = this.mass/2 + y;
+        this.mass = massKg;
+        this.diameter = diameterMeters * Main.unit;
+        syncCenter();
         this.xvel = xvel*Main.unit;
         this.yvel = yvel*Main.unit;
         this.previousX = x;
@@ -85,73 +88,64 @@ class Entity {
     }
 
     public void handlePhysics(){
+        friction();
         updatePos();
         borderCollision();
-        friction();
         entityCollision();
     }
 
+    void syncCenter() {
+        Xcenter = x + diameter / 2;
+        Ycenter = y + diameter / 2;
+    }
+
     public void updateVel(){
+        double previousVelocity = this.xvel;
         this.xvel = this.xacc * Main.t+ this.xvel;
         this.yvel = this.yacc * Main.t + this.yvel;
-        if (this.xvel>0) {
-            if (this.xacc * Main.t+ this.xvel < 0){
-                this.xvel = 0;
-                this.xacc = 0;
-            }
-        }
-        if (this.xvel<0) {
-            if (this.xacc * Main.t+ this.xvel > 0){
-                this.xvel = 0;
-                this.xacc = 0;
-            }
+        if (y >= Main.Bottom_Right_Corner.y - diameter && previousVelocity * xvel < 0) {
+            xvel = 0;
         }
     }
     public void updatePos(){
-        this.updateVel();
         this.previousX = this.x;
         this.previousY = this.y;
         this.x = 0.5 * this.xacc * Main.t*Main.t + this.xvel * Main.t + this.x;
         this.y = 0.5 * this.yacc * Main.t*Main.t + this.yvel * Main.t + this.y;
-        this.Xcenter = this.mass/2 + this.x;
-        this.Ycenter = this.mass/2 + this.y;
+        this.updateVel();
+        syncCenter();
     }
     public void borderCollision() {
-        if (Main.Bottom_Right_Corner.y - this.y < this.mass) {
-            this.y=Main.Bottom_Right_Corner.y-this.mass;
-            this.yvel = -this.yvel;
+        if (Main.Bottom_Right_Corner.y - this.y <= this.diameter) {
+            this.y=Main.Bottom_Right_Corner.y-this.diameter;
+            if (this.yvel > 0) this.yvel = Math.abs(this.yvel) <= Main.gravity * Main.t ? 0 : -this.yvel;
         }
         if (this.y < Main.Zero.y){
             this.y=Main.Zero.y;
-            this.yvel = -this.yvel;
+            if (this.yvel < 0) this.yvel = -this.yvel;
         }
 
-        if (Main.Bottom_Right_Corner.x - this.x < this.mass) {
-            this.x = Main.Bottom_Right_Corner.x-this.mass;
-            this.xvel = -this.xvel;
-            this.xacc = -this.xacc;
+        if (Main.Bottom_Right_Corner.x - this.x < this.diameter) {
+            this.x = Main.Bottom_Right_Corner.x-this.diameter;
+            if (this.xvel > 0) this.xvel = -this.xvel;
         }
         if (this.x < 0){
             this.x = 0;
-            this.xvel = -this.xvel;
-            this.xacc = -this.xacc;
+            if (this.xvel < 0) this.xvel = -this.xvel;
         }
+        syncCenter();
     }
     public void friction(){
-        if (this.y>=Main.Bottom_Right_Corner.y-this.mass) {
-            if (Math.abs(xvel) <= 1){
+        this.xacc = 0;
+        if (this.y>=Main.Bottom_Right_Corner.y-this.diameter && yvel >= 0) {
+            double deceleration = Main.coeff * Main.gravity;
+            if (Math.abs(xvel) <= deceleration * Main.t){
                 xvel = 0;
                 xacc = 0;
                 return;
             }
 
-            double normal = this.mass * Main.gravity;
-            if (this.xvel<0) {
-                this.xacc += ((Main.coeff * normal) / this.mass);
-            }
-            if (this.xvel>0) {
-                this.xacc -= ((Main.coeff * normal) / this.mass);
-            }
+            this.xacc = -Math.copySign(deceleration, xvel);
 
 
         }
@@ -164,8 +158,10 @@ class Entity {
                 Entity e1 = DrawPanel.circles.get(i);
                 Entity e2 = DrawPanel.circles.get(j);
 
-                double r1 = e1.mass / 2.0;
-                double r2 = e2.mass / 2.0;
+                e1.syncCenter();
+                e2.syncCenter();
+                double r1 = e1.diameter / 2.0;
+                double r2 = e2.diameter / 2.0;
                 double minDist = r1 + r2;
                 double sysXcenter = e2.Xcenter - e1.Xcenter;
                 double sysYcenter = e2.Ycenter - e1.Ycenter;
@@ -175,29 +171,29 @@ class Entity {
                     if (dist == 0) {
                         sysXcenter = 1;
                         sysYcenter = 0;
-                        dist = 1;
                     }
 
-                    double xnormal = sysXcenter / dist;
-                    double ynormal = sysYcenter / dist;
+                    double xnormal = dist == 0 ? 1 : sysXcenter / dist;
+                    double ynormal = dist == 0 ? 0 : sysYcenter / dist;
                     double systemXvel = e2.xvel - e1.xvel;
                     double systemYvel = e2.yvel - e1.yvel;
 
                     double velAlongNormal = systemXvel * xnormal + systemYvel * ynormal;
-                    if (velAlongNormal > 0) {
-                        continue;
-                    }
                     double overlap = minDist - dist + EPS;
-                    double ratio1 = r1/(r1+r2);
+                    double inverseMass1 = 1 / e1.mass;
+                    double inverseMass2 = 1 / e2.mass;
+                    double correction1 = overlap * inverseMass1 / (inverseMass1 + inverseMass2);
+                    double correction2 = overlap * inverseMass2 / (inverseMass1 + inverseMass2);
 
-                    e1.Xcenter -= xnormal * overlap/(ratio1);
-                    e1.Ycenter -= ynormal * overlap/(ratio1);
-                    e2.Xcenter -= xnormal * overlap/(1-ratio1);
-                    e2.Ycenter -= ynormal * overlap/(1-ratio1);
+                    e1.Xcenter -= xnormal * correction1;
+                    e1.Ycenter -= ynormal * correction1;
+                    e2.Xcenter += xnormal * correction2;
+                    e2.Ycenter += ynormal * correction2;
                     e1.x = e1.Xcenter - r1;
                     e1.y = e1.Ycenter - r1;
                     e2.x = e2.Xcenter - r2;
                     e2.y = e2.Ycenter - r2;
+                    if (velAlongNormal >= 0) continue;
 
                     double m1 = e1.mass;
                     double m2 = e2.mass;
